@@ -1,44 +1,53 @@
-use json;
+use clap::Parser;
 use rand::Rng;
 use reqwest::{self, Result};
-use std::{env, io::{stdout, Write} ,thread, time::Duration};
+use std::{
+    io::{Write, stdout},
+    thread,
+    time::Duration,
+};
 
-// Define custom error messages
-fn print_error_message(animal: &str) -> String {
-    let cat_error_message = String::from("Failed to retrieve Cat Fact, check internet connection.");
-    let dog_error_message = String::from("Failed to retrieve Dog Fact, check internet connection.");
+const DOG_API_URL: &str = "https://dogapi.dog/api/v2/facts";
+const CAT_API_URL: &str = "https://catfact.ninja/fact";
 
-    if animal == "cat" {
-        cat_error_message
-    } else {
-        dog_error_message
-    }
+/// Prints out a cat or dog fact, it no animal is specified a random one will be chosen.
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// Print a cat fact
+    #[arg(long, short, action)]
+    cat: bool,
+
+    /// Print a dog fact
+    #[arg(long, short, action)]
+    dog: bool,
 }
 
-// Get petfacts version from Cargo.toml
-fn get_version() -> String {
-    env!("CARGO_PKG_VERSION").to_string()
+/// Gets a dog fact from dog fact API
+fn get_dog_fact() -> Result<String> {
+    let json_data = reqwest::blocking::get(DOG_API_URL)?.text()?;
+    let dog_fact = json::parse(&json_data).expect("Failed to parse dog fact JSON string");
+    Ok(dog_fact["data"][0]["attributes"]["body"].to_string())
 }
 
-// Get the fact data based on the URL that is passed
-fn get_fact(url: &str) -> Result<String> {
-    match reqwest::blocking::get(url) {
-        Ok(fact) => return fact.text(),
-        Err(e) => return Err(e),
-    };
+/// Gets a cat fact from the cat fact API
+fn get_cat_fact() -> Result<String> {
+    let json_data = reqwest::blocking::get(CAT_API_URL)?.text()?;
+    let cat_fact = json::parse(&json_data).expect("Failed to parse cat fact JSON string");
+    Ok(cat_fact["fact"].to_string())
 }
 
 // Return dog or cat as a string randomly
-fn random_animal() -> String {
+fn random_animal() -> &'static str {
     if rand::rng().random::<bool>() {
-        String::from("dog")
+        "dog"
     } else {
-        String::from("cat")
+        "cat"
     }
 }
 
 // Give the output an effect of being typed out
-fn type_string(string_to_type: &String) {
+fn type_fact(string_to_type: &String) {
     for character in string_to_type.chars() {
         print!("{character}");
         stdout().flush().expect("Something is wrong with stdout!");
@@ -47,75 +56,53 @@ fn type_string(string_to_type: &String) {
     println!(""); // Go to the next line when done "typing"
 }
 
-// Print out a help screen
-fn print_help() {
-    println!("-----------------------------------------------------------");
-    println!("                      -- Petfacts --                       ");
-    println!("[dog] -- Print out a random dog fact to the console screen.");
-    println!("[cat] -- Print out a random cat fact to the console screen.");
-    println!("[help] -- Print this help message.                         ");
-    println!("[version] -- Print the current petfacts version.           ");
-    println!("-----------------------------------------------------------");
+fn print_fact(animal: Option<&str>) -> Result<()> {
+    match animal {
+        Some("dog") => {
+            let dog_fact = get_dog_fact()?;
+            type_fact(&dog_fact);
+            Ok(())
+        }
+        Some("cat") => {
+            let cat_fact = get_cat_fact()?;
+            type_fact(&cat_fact);
+            Ok(())
+        }
+        Some(&_) => {
+            panic!("Error in the print_fact function");
+        }
+        None => {
+            let animal = random_animal();
+            if animal == "cat" {
+                let cat_fact = get_cat_fact()?;
+                type_fact(&cat_fact);
+            } else {
+                let dog_fact = get_dog_fact()?;
+                type_fact(&dog_fact);
+            }
+            Ok(())
+        }
+    }
 }
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    let (dog_url, cat_url): (String, String) = (String::from("https://dogapi.dog/api/v2/facts"), String::from("https://catfact.ninja/fact"));
-    
-    if args.len() > 1 {
-        // If an argument is passed handle it
-        match args[1].to_lowercase().as_str() {
-            "cat" => {
-                let fact = get_fact(&cat_url);
-                match fact {
-                    Ok(f) => {
-                        let fact_json = json::parse(&f.as_str()).unwrap();
-                        type_string(&fact_json["fact"].to_string());
-                    }
+    // let args: Vec<String> = env::args().collect();
+    let args = Args::parse();
 
-                    Err(_) => println!("{}", print_error_message("cat")),
-                };
-            },
-            "dog" => {
-                let fact = get_fact(&dog_url);
-                match fact {
-                    Ok(f) => {
-                        let fact_json = json::parse(&f.to_string()).unwrap();
-                        type_string(&fact_json["data"][0]["attributes"]["body"].to_string());
-                    }
-
-                    Err(_) => println!("{}", print_error_message("dog")),
-                };
-            },
-            "help" => print_help(),
-            "version" => println!("Petfacts Version: {}", get_version()),
-            _ => {
-                println!("Invalid option: {}", args[1]);
-                print_help();
-            }
-        };
+    if args.cat {
+        println!("Cat");
+        print_fact(Some("cat")).unwrap_or_else(|e| {
+            panic!("Failed to print cat fact: {}", e);
+        });
+    } else if args.dog {
+        println!("Dog");
+        print_fact(Some("dog")).unwrap_or_else(|e| {
+            panic!("Failed to print dog fact: {}", e);
+        });
     } else {
-        // If no argument is passed choose a dog or a cat fact randomly
-        if random_animal() == "cat".to_string() {
-            let fact = get_fact(&cat_url);
-            match fact {
-                Ok(f) => {
-                    let fact_json = json::parse(&f.as_str()).unwrap();
-                    type_string(&fact_json["fact"].to_string());
-                }
-
-                Err(_) => println!("{}", print_error_message("cat")),
-            };
-        } else {
-            let fact = get_fact(&dog_url);
-            match fact {
-                Ok(f) => {
-                    let fact_json = json::parse(&f.to_string()).unwrap();
-                    type_string(&fact_json["data"][0]["attributes"]["body"].to_string());
-                }
-
-                Err(_) => println!("{}", print_error_message("dog")),
-            };
-        }
+        println!("Random");
+        print_fact(None).unwrap_or_else(|e| {
+            panic!("Failed to print randomized fact: {}", e);
+        });
     }
 }
