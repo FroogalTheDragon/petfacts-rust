@@ -37,7 +37,7 @@ fn get_cat_fact() -> Result<String> {
     Ok(cat_fact["fact"].to_string())
 }
 
-// Return dog or cat as a string randomly
+/// Return dog or cat as a string randomly
 fn random_animal() -> &'static str {
     if rand::rng().random::<bool>() {
         "dog"
@@ -46,7 +46,7 @@ fn random_animal() -> &'static str {
     }
 }
 
-// Give the output an effect of being typed out
+/// Give the output an effect of being typed out
 fn type_fact(string_to_type: &String) {
     for character in string_to_type.chars() {
         print!("{character}");
@@ -56,6 +56,7 @@ fn type_fact(string_to_type: &String) {
     println!(""); // Go to the next line when done "typing"
 }
 
+/// Print a pet fact based on the animal passed
 fn print_fact(animal: Option<&str>) -> Result<()> {
     match animal {
         Some("dog") => {
@@ -86,7 +87,6 @@ fn print_fact(animal: Option<&str>) -> Result<()> {
 }
 
 fn main() {
-    // let args: Vec<String> = env::args().collect();
     let args = Args::parse();
 
     if args.cat {
